@@ -1,11 +1,12 @@
 import { useState, FormEvent } from "react";
-import { Box, Grid, TextField, Autocomplete } from "@mui/material";
+import { Grid, TextField, Autocomplete } from "@mui/material";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import { useNavigate } from "react-router-dom";
 import { IFormValues } from "../lib/type";
 import TypographyComponent from "../components/Typography";
 import ButtonComponent from "../components/Button";
 import { languageOptions } from "../lib/constant";
+import BoxScreenCenter from "../components/Box/BoxScreenCenter";
 
 const Home = () => {
   const navigate = useNavigate();
@@ -37,13 +38,7 @@ const Home = () => {
   };
 
   return (
-    <Box
-      sx={{
-        position: "fixed",
-        left: "50%",
-        transform: "translateX(-50%)",
-      }}
-    >
+    <BoxScreenCenter>
       <form onSubmit={handleSubmit}>
         <Grid container spacing={2} mt={8}>
           <Grid item xs={12} mb={4}>
@@ -103,7 +98,7 @@ const Home = () => {
           </Grid>
         </Grid>
       </form>
-    </Box>
+    </BoxScreenCenter>
   );
 };
 
