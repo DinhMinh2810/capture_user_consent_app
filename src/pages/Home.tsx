@@ -1,45 +1,57 @@
-import { useState, FormEvent } from "react";
-import { Grid, TextField, Autocomplete } from "@mui/material";
+import { Grid, TextField, Autocomplete, Box } from "@mui/material";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import { useNavigate } from "react-router-dom";
-import { IFormValues } from "../lib/type";
 import TypographyComponent from "../components/Typography";
 import ButtonComponent from "../components/Button";
 import { languageOptions } from "../lib/constant";
 import BoxScreenCenter from "../components/Box/BoxScreenCenter";
+import { getDataLocalStorage } from "../lib/function";
+import { useForm, SubmitHandler, Controller } from "react-hook-form";
+import { object, string, TypeOf } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+
+const validationSchema = object({
+  name: string().nonempty("Name is required"),
+  language: string().nonempty("Language is required"),
+});
+
+type RegisterInput = TypeOf<typeof validationSchema>;
 
 const Home = () => {
   const navigate = useNavigate();
-  const dataConsent = JSON.parse(localStorage.getItem("dataConsent") || "");
+  const dataConsent = getDataLocalStorage("dataConsent") || [];
 
-  const [formValues, setFormValues] = useState<IFormValues>({
-    name: "",
-    language: null,
+  const {
+    register,
+    formState: { errors },
+    control,
+    handleSubmit,
+  } = useForm<RegisterInput>({
+    resolver: zodResolver(validationSchema),
   });
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    if (!formValues.name || !formValues.language) {
-      return;
-    } else if (formValues.name && formValues.language) {
-      if (dataConsent.length >= 1) {
-        const valueArr = [...dataConsent];
-        valueArr.push(formValues);
-        localStorage.setItem("dataConsent", JSON.stringify(valueArr));
-      } else {
-        const valueArr = [];
-        valueArr.push(formValues);
-        localStorage.setItem("dataConsent", JSON.stringify(valueArr));
-      }
-
-      navigate("/agree");
+  const onSubmitHandler: SubmitHandler<RegisterInput> = (values) => {
+    if (dataConsent.length >= 1) {
+      const valueArr = [...dataConsent];
+      valueArr.push(values);
+      localStorage.setItem("dataConsent", JSON.stringify(valueArr));
+    } else {
+      const valueArr = [];
+      valueArr.push(values);
+      localStorage.setItem("dataConsent", JSON.stringify(valueArr));
     }
+    localStorage.setItem("language", JSON.stringify(values.language));
+    navigate("/agree");
   };
 
   return (
     <BoxScreenCenter>
-      <form onSubmit={handleSubmit}>
+      <Box
+        component="form"
+        noValidate
+        autoComplete="off"
+        onSubmit={handleSubmit(onSubmitHandler)}
+      >
         <Grid container spacing={2} mt={8}>
           <Grid item xs={12} mb={4}>
             <TypographyComponent
@@ -53,42 +65,43 @@ const Home = () => {
           <Grid item xs={12}>
             <TextField
               id="name"
-              name="name"
               placeholder="Enter your name"
               fullWidth
-              error={!formValues.name}
-              helperText={!formValues.name && "Value is required!"}
-              value={formValues.name}
-              onChange={(e) => {
-                const { name, value } = e.target;
-                setFormValues({
-                  ...formValues,
-                  [name]: value,
-                });
-              }}
+              required
+              error={!!errors["name"]}
+              helperText={errors["name"] ? errors["name"].message : ""}
+              {...register("name")}
             />
           </Grid>
           <Grid item xs={12}>
             <TypographyComponent title="Language" />
           </Grid>
           <Grid item xs={12}>
-            <Autocomplete
-              disablePortal
-              id="combo-box-demo"
-              options={languageOptions}
-              fullWidth
-              onChange={(e, value) =>
-                setFormValues({
-                  ...formValues,
-                  language: value,
-                })
-              }
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  placeholder="Select language"
-                  error={!formValues.language}
-                  helperText={!formValues.language && "Value is required!"}
+            <Controller
+              name="language"
+              control={control}
+              rules={{
+                required: true,
+              }}
+              render={({ field: { onChange } }) => (
+                <Autocomplete
+                  options={languageOptions}
+                  onChange={(_, data) => onChange(data?.value)}
+                  fullWidth
+                  disablePortal
+                  id="combo-box-demo"
+                  renderInput={(params) => {
+                    return (
+                      <TextField
+                        {...params}
+                        placeholder="Select language"
+                        error={!!errors["language"]}
+                        helperText={
+                          errors["language"] ? errors["language"].message : ""
+                        }
+                      />
+                    );
+                  }}
                 />
               )}
             />
@@ -97,7 +110,7 @@ const Home = () => {
             <ButtonComponent title="Next" endIcon={<ArrowForwardIcon />} />
           </Grid>
         </Grid>
-      </form>
+      </Box>
     </BoxScreenCenter>
   );
 };
