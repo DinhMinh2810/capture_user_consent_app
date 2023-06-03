@@ -20,7 +20,7 @@ const TypographyStyled = styled(Typography)(() => ({
 
 function ClickableListInner<T>(
   props: ClickableListProps<T>,
-  ref: ForwardedRef<HTMLUListElement>
+  ref: ForwardedRef<HTMLElement>
 ) {
   return (
     <TypographyStyled

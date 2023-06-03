@@ -1,41 +1,44 @@
-import React, { useRef, useState, useEffect, useLayoutEffect } from "react";
+import { useRef, useState, useEffect } from "react";
 import BoxScreenCenter from "../components/Box/BoxScreenCenter";
 import { Grid, Box, Stack } from "@mui/material";
 import TypographyComponent from "../components/Typography";
-import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
-import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { toast } from "react-toastify";
 import { getDataLocalStorage } from "../lib/function";
 import ButtonComponent from "../components/Button";
-declare global {
-  interface Window {
-    example: any; // 👈️ turn off type checking
-  }
-}
+import {
+  KeyboardVoice,
+  ArrowForward,
+  PlayArrow,
+  Pause,
+  Redo,
+} from "@mui/icons-material";
+import { languageContent } from "../lib/constant";
+import { useNavigate } from "react-router-dom";
 
 const Agree = () => {
-  const synth = window.speechSynthesis;
-  const language = getDataLocalStorage("language");
+  const navigate = useNavigate();
 
-  const recordBtn = document.querySelector(".record"),
-    result: any = document.querySelector(".result"),
-    downloadBtn: any = document.querySelector(".download"),
-    inputLanguage: any = document.querySelector("#language"),
-    clearBtn: any = document.querySelector(".clear");
-  const interim = document.querySelector(".interim");
+  const synth = window.speechSynthesis;
+
+  const language = getDataLocalStorage("language");
+  const dataConsent = getDataLocalStorage("dataConsent");
+
   let SpeechRecognition =
     (window as any).SpeechRecognition ||
     (window as any).webkitSpeechRecognition;
-  let recognition: any;
-  let recording = false;
 
-  const textReadRef = useRef<any>(null);
-  const textReadAgreeRef = useRef<any>(null);
+  let recognition: any;
+
+  const textReadRef = useRef<HTMLElement>(null);
+  const textReadAgreeRef = useRef<HTMLElement>(null);
+  const contentResultRef = useRef<any>(null);
 
   const [isReadContent, setIsReadContent] = useState<boolean>(false);
-  const [isSwitchSpeed, setIsSwitchSpeed] = useState<boolean>(false);
-  // Speak
-  const speakContent = () => {
+  const [isSwitchSpeaking, setIsSwitchSpeaking] = useState<boolean>(false);
+  const [isSpeaking, setIsSpeaking] = useState<boolean>(true);
+
+  // Speak content
+  const handleSpeakContent = () => {
     if (synth.speaking) {
       return;
     }
@@ -46,13 +49,15 @@ const Agree = () => {
       );
 
       // Speak end
-      speakText.onend = (e) => {
+      speakText.onend = () => {
         setIsReadContent(true);
       };
 
       // Speak error
-      speakText.onerror = (e) => {
-        console.error("Something went wrong");
+      speakText.onerror = () => {
+        toast.error("Something went wrong", {
+          position: toast.POSITION.TOP_RIGHT,
+        });
       };
 
       // Speak
@@ -60,41 +65,42 @@ const Agree = () => {
     }
   };
 
-  const handleSwitchSpeed = () => {
+  const handleSwitchSpeaking = () => {
     setIsReadContent((prev) => !prev);
-    setIsSwitchSpeed((prev) => !prev);
+    setIsSwitchSpeaking((prev) => !prev);
   };
 
-  const stopRecording = () => {
+  const handleStopRecording = () => {
     recognition.stop();
-    recording = false;
+    setIsSpeaking(false);
   };
 
-  const speechToText = () => {
+  const handleSpeechToText = () => {
     try {
+      setIsSpeaking(true);
+
       recognition = new SpeechRecognition();
-      recognition.lang = language.value;
+      recognition.lang = language;
       recognition.interimResults = true;
 
       recognition.start();
       recognition.onresult = (event: any) => {
         const speechResult = event.results[0][0].transcript;
-
-        if (!document.querySelector(".interim")) {
-          const interim = document.createElement("p");
-          interim.classList.add("interim");
-          result.appendChild(interim);
+        //detect when intrim results
+        if (event.results[0].isFinal) {
+          contentResultRef.current.innerHTML += `${
+            language === "en-US"
+              ? languageContent.YouResEn
+              : languageContent.YouResFr
+          } '${speechResult}'`;
         }
-
-        // Update the interim p with the speech result
-
-        if (interim) {
-          interim.innerHTML = `You response: ${speechResult}`;
-        }
+      };
+      recognition.onspeechend = () => {
+        handleSpeechToText();
       };
 
       recognition.onerror = (event: any) => {
-        stopRecording();
+        handleStopRecording();
         if (event.error === "no-speech") {
           toast.error("No speech was detected. Stopping...", {
             position: toast.POSITION.TOP_RIGHT,
@@ -111,27 +117,54 @@ const Agree = () => {
             position: toast.POSITION.TOP_RIGHT,
           });
         } else if (event.error === "aborted") {
-          toast.error("Listening Stopped.", {
+          toast.error("Listening stopped.", {
             position: toast.POSITION.TOP_RIGHT,
           });
         } else {
-          toast.error(`Error occurred in recognition: ${event.error}`, {
+          toast.error(`Error occurred in recognition: ${event.error}.`, {
             position: toast.POSITION.TOP_RIGHT,
           });
         }
       };
     } catch (error) {
-      recording = false;
-      console.log(error);
+      toast.error(`${error}.`, {
+        position: toast.POSITION.TOP_RIGHT,
+      });
     }
   };
 
-  const handleClearSpeed = () => {
-    if (interim) interim.innerHTML = "";
+  const handleClearSpeaking = () => {
+    if (contentResultRef.current.innerHTML) {
+      contentResultRef.current.innerHTML = "";
+    }
+  };
+
+  const handleSubmitRecord = () => {
+    if (!isSpeaking) {
+      if (contentResultRef.current.innerHTML) {
+        const lastItemArr = dataConsent.at(-1);
+        dataConsent.pop();
+        const newValue = [
+          ...dataConsent,
+          { ...lastItemArr, content: contentResultRef.current.innerHTML },
+        ];
+
+        localStorage.setItem("dataConsent", JSON.stringify(newValue));
+        navigate("/consent");
+      } else {
+        toast.error("Please say something to record.", {
+          position: toast.POSITION.TOP_RIGHT,
+        });
+      }
+    } else {
+      toast.error("Please turn off record.", {
+        position: toast.POSITION.TOP_RIGHT,
+      });
+    }
   };
 
   useEffect(() => {
-    speakContent();
+    handleSpeakContent();
   }, []);
 
   return (
@@ -139,22 +172,34 @@ const Agree = () => {
       <Grid container spacing={2} mt={8}>
         <Grid item xs={12} mb={4}>
           <TypographyComponent
-            title="Consent Form"
-            sx={{ fontSize: "32px", fontWeight: 700 }}
+            title={
+              language === "en-US"
+                ? languageContent.ConsentFormEn
+                : languageContent.ConsentFormFr
+            }
+            sx={{ fontSize: "32px", fontWeight: 700, textAlign: "center" }}
           />
         </Grid>
 
         <Grid item xs={12} mb={4}>
           <TypographyComponent
             ref={textReadRef}
-            title="You understand that by using the site or site services, you agree to be bound by this agreement. If you do not accept this agreement in its entirety, you must not access or use the site or the site services"
+            title={
+              language === "en-US"
+                ? languageContent.textReadEnglish
+                : languageContent.textReadFrench
+            }
           />
         </Grid>
 
         <Grid item xs={12} mb={4}>
           <TypographyComponent
             ref={textReadAgreeRef}
-            title={`Do you agree to this agreement? Please respond by saying "Yes" or "No"`}
+            title={
+              language === "en-US"
+                ? languageContent.textReadAgreeEnglish
+                : languageContent.textReadAgreeFrench
+            }
           />
         </Grid>
 
@@ -162,10 +207,10 @@ const Agree = () => {
           item
           xs={12}
           display="flex"
-          justifyContent={isSwitchSpeed ? "flex-start" : "center"}
+          justifyContent={isSwitchSpeaking ? "flex-start" : "center"}
           mt={4}
         >
-          {/* {isReadContent && (
+          {isReadContent && (
             <Box
               sx={{
                 color: "#666666",
@@ -174,54 +219,61 @@ const Agree = () => {
                 borderRadius: "50%",
                 cursor: "pointer",
               }}
-              onClick={handleSwitchSpeed}
+              onClick={handleSwitchSpeaking}
             >
-              <KeyboardVoiceIcon />
+              <KeyboardVoice />
             </Box>
-          )} */}
+          )}
 
-          {/* {isSwitchSpeed && <p onClick={speechToText}>Start Listening</p>
-        <div
-          className="result"
-          spellCheck="false"
-          placeholder="Text will be shown here"
-        >
-          <p className="interim"></p>
-        </div>} */}
-
-          <Stack direction="row" alignItems="center" gap={4} ml={6}>
-            <Box
-              sx={{
-                color: "#666666",
-                backgroundColor: "#d8d8d8",
-                padding: "16px 20px",
-                borderRadius: "50%",
-                cursor: "pointer",
-              }}
-              onClick={speechToText}
-            >
-              <PlayArrowIcon />
-            </Box>
-            <TypographyComponent className="interim" title="" />
-          </Stack>
+          {isSwitchSpeaking && (
+            <Stack direction="row" alignItems="center" gap={4} ml={6}>
+              <Box
+                sx={{
+                  color: "#666666",
+                  backgroundColor: "#d8d8d8",
+                  padding: "16px 20px",
+                  borderRadius: "50%",
+                  cursor: "pointer",
+                }}
+                onClick={handleSpeechToText}
+              >
+                {isSpeaking ? <PlayArrow /> : <Pause />}
+              </Box>
+              <TypographyComponent ref={contentResultRef} title="" />
+            </Stack>
+          )}
         </Grid>
 
-        <Grid
-          item
-          xs={12}
-          mt={8}
-          display="flex"
-          gap={2}
-          justifyContent="flex-end"
-          alignItems="center"
-        >
-          <ButtonComponent
-            title="Retry"
-            onClick={handleClearSpeed}
-            endIcon={<ArrowForwardIcon />}
-          />
-          <ButtonComponent title="Save" endIcon={<ArrowForwardIcon />} />
-        </Grid>
+        {isSwitchSpeaking && (
+          <Grid
+            item
+            xs={12}
+            mt={8}
+            display="flex"
+            gap={2}
+            justifyContent="flex-end"
+            alignItems="center"
+          >
+            <ButtonComponent
+              title={
+                language === "en-US"
+                  ? languageContent.RetryEnglish
+                  : languageContent.RetryFrench
+              }
+              onClick={handleClearSpeaking}
+              endIcon={<Redo />}
+            />
+            <ButtonComponent
+              title={
+                language === "en-US"
+                  ? languageContent.SaveEnglish
+                  : languageContent.SaveFrench
+              }
+              onClick={handleSubmitRecord}
+              endIcon={<ArrowForward />}
+            />
+          </Grid>
+        )}
       </Grid>
     </BoxScreenCenter>
   );
